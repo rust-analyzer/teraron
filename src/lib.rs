@@ -1,16 +1,11 @@
 //! A simple tool to generate rust code by passing a ron value
 //! to a tera template
 
-#[macro_use]
-extern crate failure;
-extern crate tera;
-extern crate ron;
-extern crate heck;
-
 use std::{
     fs,
     collections::HashMap,
     path::Path,
+    error::Error
 };
 
 use heck::{CamelCase, ShoutySnakeCase, SnakeCase};
@@ -25,7 +20,7 @@ pub use Mode::*;
 
 /// A helper to update file on disk if it has changed.
 /// With verify = false,
-pub fn update(path: &Path, contents: &str, mode: Mode) -> Result<(), failure::Error> {
+pub fn update(path: &Path, contents: &str, mode: Mode) -> Result<(), Box<dyn Error>> {
     match fs::read_to_string(path) {
         Ok(ref old_contents) if old_contents == contents => {
             return Ok(());
@@ -33,7 +28,7 @@ pub fn update(path: &Path, contents: &str, mode: Mode) -> Result<(), failure::Er
         _ => (),
     }
     if mode == Verify {
-        bail!("`{}` is not up-to-date", path.display());
+        Err(format!("`{}` is not up-to-date", path.display()))?;
     }
     eprintln!("updating {}", path.display());
     fs::write(path, contents)?;
@@ -44,7 +39,7 @@ pub fn generate(
     template: &Path,
     src: &Path,
     mode: Mode,
-) -> Result<(), failure::Error> {
+) -> Result<(), Box<dyn Error>> {
     assert_eq!(
         template.extension().and_then(|it| it.to_str()), Some("tera"),
         "template file must have .rs.tera extension",
@@ -71,12 +66,12 @@ pub fn generate(
 pub fn render(
     template: &str,
     src: ron::Value,
-) -> Result<String, failure::Error> {
+) -> Result<String, Box<dyn Error>> {
     let mut tera = mk_tera();
     tera.add_raw_template("_src", template)
-        .map_err(|e| format_err!("template parsing error: {:?}", e))?;
+        .map_err(|e| format!("template parsing error: {:?}", e))?;
     let res = tera.render("_src", &src)
-        .map_err(|e| format_err!("template rendering error: {:?}", e))?;
+        .map_err(|e| format!("template rendering error: {:?}", e))?;
     return Ok(res);
 }
 
